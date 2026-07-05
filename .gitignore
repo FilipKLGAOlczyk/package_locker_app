@@ -1,0 +1,9 @@
+cmake-build-debug
+.idea
+build
+
+# Doxygen
+html
+latex
+Dockerfile
+library/src/repositories/bazy/baza_klientow.json

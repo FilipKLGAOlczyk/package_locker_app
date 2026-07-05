@@ -1,0 +1,254 @@
+@startuml
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 80
+
+' --- Definicje klas ---
+class ClientManager {
+  + registerClient(id: int, firstName: string, lastName: string, email: string): bool
+  + getClient(email: string): ClientPtr
+  + getClient(id: unsigned int): ClientPtr
+  + getAllClients(predicate: ClientPredicate): Client[0..*]
+  + saveToFile(path: string): void
+}
+
+class ParcelManager {
+  + registerParcel(sender: ClientPtr, recipient: ClientPtr, destination: LockerPtr): bool
+  + dispatchParcel(parcel: ParcelPtr): void
+  + courierCollectParcel(parcel: ParcelPtr): void
+  + deliverParcel(parcel: ParcelPtr, locker: LockerPtr): void
+  + collectParcel(parcel: ParcelPtr): void
+  + getRecipientsParcels(client: ClientPtr): Parcel[0..*]
+  + getDestinationsParcels(locker: LockerPtr): Parcel[0..*]
+  + getParcel(id: int): ParcelPtr
+  + findAllParcels(): Parcel[0..*]
+  + getFinalPrice(parcel: ParcelPtr): double
+  + saveToFile(path: string): void
+}
+
+class LockerManager {
++ RegisterLocker(id: int, location: string, lockerCount: int): bool
++ getLocker(id: int): LockerPtr
++ getAllLockers(): Locker[0..*]
++ saveToFile(path: string): void
+}
+
+class ClientRepository {
+- clients: Client[0..*]
++ add(client:ClientPtr): void
++ remove(client:ClientPtr): void
++ report(): string
++ size(): int
++ findBy(predicate: ClientPredicate): ClientPtr
++ findAllBy(): Client[0..*]
++ saveToFile(path: string): void
+
+}
+
+class ParcelRepository {
+- parcels: Parcel[0..*]
++ add(parcel:ParcelPtr): void
++ report(): string
++ size(): int
++ findBy(predicate: ParcelPredicate): ParcelPtr
++ findAllBy(): Parcel[0..*]
++ saveToFile(path: string): void
+}
+
+class LockerRepository {
+- lockers: Locker[0..*]
++ add(locker:LockerPtr): void
++ remove(locker:LockerPtr): void
++ report(): string
++ size(): int
++ findBy(predicate: LockerPredicate): LockerPtr
++ findAllBy(): Locker[0..*]
++ saveToFile(path: string): void
+}
+
+class Client {
+  - id : unsigned int
+  - firstName : string
+  - lastName : string
+  - email: string
+
+  + getInfo(): string
+  + getId(): unsigned int
+  + getFirstName(): string
+  + getLastName(): string
+  + getEmail(): string
+}
+class ClientPredicate{
+}
+
+abstract class Parcel {
+  - id : unsigned int
+  - status : ParcelStatus
+  - sender : ClientPtr
+  - recipient : ClientPtr
+  - origin : LockerPtr
+  - destination : LockerPtr
+  - basePrice : double
+
+  + getInfo(): string
+  + getFullInfo(): string
+  + getStatus(): ParcelStatus
+  + getStatusString(): string
+  + getId(): unsigned int
+  + setStatus(): void
+  + getSender(): ClientPtr
+  + getRecipient(): ClientPtr
+  + getOrigin(): LockerPtr
+  + getDestination(): LockerPtr
+  + getBasePrice(): double
+  + getActualPrice(): double
+}
+class ParcelPredicate{
+}
+
+class Insured {
+  - fragile : bool
+  - directional : bool
+  - declaredValue: double
+
+  + getInfo(): string
+  + getFullInfo: string
+  + getActualPrice(): double
+  + isFragile(): bool
+  + isDirectional(): bool
+  + getDeclaredValue(): double
+  + getInsurancePrice(): double
+}
+
+class Express {
+  - deadline : ExpressParcelDeadline
+
+  + getInfo(): string
+  + getFullInfo(): string
+  + getActualPrice(): double
+  + getDeadline(): ExpressParcelDeadline
+  + getDeadlineString(): string
+  + getDeadlineMultiplier(): double
+}
+
+enum ExpressParcelDeadline {
+  weekendDelivery
+  nextDay
+  sameDay
+}
+
+class Standard {
+  + getInfo(): string
+  + getFullInfo(): string
+  + getActualPrice(): double
+}
+
+enum ParcelStatus {
+  registered
+  dispatched
+  enRoute
+  deliveredToLocker
+  collected
+}
+
+class Locker {
+  - id : unsigned int
+  - location: string
+  - lockerCount : unsigned int
+  - currentParcels : Parcel[0..*]
+
+  + getId(): unsigned int
+  + getInfo(): string
+  + getLocation(): string
+  + getLockerCount(): unsigned int
+  + getCurrentParcels(): Parcel[0..*]
+  + addParcel(parcel: ParcelPtr): void
+  + removeParcel(parcel: ParcelPtr): void
+  + isFull(): bool
+  + getFullInfo: string
+}
+class LockerPredicate{
+}
+
+' --- Relacje Menedżer -> Repositoryzytorium ---
+ClientManager -down-> ClientRepository
+ParcelManager -down-> ParcelRepository
+LockerManager -down-> LockerRepository
+
+' --- Relacje Repositoryzytorium -> Model ---
+ClientRepository -down-> Client
+ParcelRepository -down-> Parcel
+LockerRepository -down-> Locker
+
+' --- Dziedziczenie klas wielkości paczek ---
+together{
+  class Insured
+  class Express
+  class Standard
+}
+Parcel <|-- Insured
+Parcel <|-- Express
+Express-down-> ExpressParcelDeadline : deadline
+Parcel <|-- Standard
+
+' --- Relacje między modelami ---
+Parcel -up-> ParcelStatus : status
+
+Parcel "1" -left-> "2" Client : sender / recipient
+
+Parcel "1" -right-> "2" Locker : origin / destination
+
+Locker "1" o-down- "*" Parcel : currentParcels
+
+ClientManager..>ClientPredicate
+ClientRepository..>ClientPredicate
+ClientPredicate ..> Client
+
+ParcelManager..>ParcelPredicate
+ParcelRepository..>ParcelPredicate
+ParcelPredicate ..> Parcel
+
+
+LockerManager..>LockerPredicate
+LockerRepository..>LockerPredicate
+LockerPredicate ..> Locker
+
+
+note left of ParcelManager
+  **Scenariusz: Nadanie paczki w paczkomacie**
+  1. Wywołujemy dispatchParcel(parcel).
+  2. Menedżer sprawdza, czy w paczkomacie
+     jest miejsce: locker->isFull().
+  3. Jeśli pełny -> loguje błąd / przerywa akcję.
+  4. Jeśli jest miejsce -> locker->addParcel(parcel).
+  5. Menedżer zmienia status paczki na:
+     parcel->setStatus(dispatched).
+end note
+
+note right of ParcelRepository
+  **Scenariusz: Wyszukiwanie paczek w drodze**
+  1. ParcelManager wywołuje szukanie paczki,
+   przekazując do metody findBy() odpowiedni predykat.
+  2. ParcelRepository iteruje po zapisanych paczkach.
+  3. Dla każdej paczki wywoływane jest sprawdzenie warunku:
+     czy predicate(parcel) zwraca wartość true.
+  4. Repozytorium zwraca pierwszy obiekt typu Parcel spełniający
+     warunek lub nullptr, jeśli taka paczka nie istnieje.
+end note
+
+note bottom of Parcel
+  **Obliczanie ceny zależnej od typu paczki:**
+  Paczki (Standard, Express, Insured) dziedziczą po
+  klasie abstrakcyjnej Parcel i przesłaniają
+  metodę getActualPrice().
+
+  Dla Express cena obliczana jest na podstawie atrybutu
+  basePrice (z klasy bazowej) przemnożonego przez
+  właściwy dla danego deadline atrybutu multiplier.
+
+  Dla Insured cana obliczana jest na podstawie atrybutu
+  basePrice (z klasy bazowej) dodając cenę InsurancePrice
+end note
+@enduml
